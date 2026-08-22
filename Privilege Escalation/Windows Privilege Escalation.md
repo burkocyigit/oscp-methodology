@@ -33,16 +33,8 @@ Run these in parallel, then manually verify every hit — don't trust the tool's
 # WinPEAS (most thorough, noisy)
 .\winPEASx64.exe quiet servicesinfo filesinfo > winpeas_out.txt
 
-# PowerUp (great for service/ACL misconfig)
-powershell -ep bypass
-Import-Module .\PowerUp.ps1
-Invoke-AllChecks
-
-# Seatbelt (stealthier, good for AD-joined boxes)
-.\Seatbelt.exe -group=all
-
-# Sherlock / Watson for missing KB -> kernel exploit candidates
-.\Watson.exe
+# PrivescCheck
+powershell -ep bypass -c ". .\PrivescCheck.ps1; Invoke-PrivescCheck"
 ```
 
 **Decision point:** cross-reference `systeminfo` patch level against Watson output before trusting a suggested kernel exploit — false positives are common.
@@ -152,6 +144,7 @@ icacls "C:\path\to\task\binary.exe"
 # Broad recursive sweep of interesting files
 findstr /si password *.txt *.ini *.xml *.config *.cfg 2>nul
 findstr /spin "password" *.*
+findstr /SIM /C:"password" *.txt *.ini *.cfg *.config *.xml *.git *.ps1 *.yml
 
 # Unattended install / sysprep leftovers (classic)
 dir /s /b C:\Windows\Panther\Unattend.xml
@@ -238,7 +231,7 @@ Then compile/transfer matching PoC (e.g. CVE-2021-1732, CVE-2020-0796/SMBGhost, 
 ## Priority Fast-Path (try in this order first)
 
 1. **`whoami /priv` → SeImpersonatePrivilege → PrintSpoofer/GodPotato** — by far the most common OSCP Windows privesc.
-2. **WinPEAS/PowerUp sweep** for service misconfig (unquoted paths, weak binary/service ACLs) — second most common.
+2. **WinPEAS/PrivescCheck**
 3. **AlwaysInstallElevated** registry check — quick, binary yes/no.
 4. **Scheduled tasks pointing to writable binaries.**
 5. **Credential sweep** (Unattend.xml, PS history, web.config, saved RDP/PuTTY) — often chains into a completely different (easier) vector, including lateral movement.

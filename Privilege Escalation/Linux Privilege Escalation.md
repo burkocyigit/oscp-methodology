@@ -42,7 +42,7 @@ Most reliable vector on OSCP boxes. Check in this order:
 
 ```bash
 # Config/secret files — broad sweep
-grep -riE "password|passwd|secret|api_key|token" /etc /var/www /opt /home 2>/dev/null --include=*.{conf,config,ini,env,yml,yaml,xml,php,json}
+grep -riE "password|passwd|pw" /etc /var/www /opt /home 2>/dev/null --include=*.{conf,config,ini,env,yml,yaml,xml,php,json}
 
 # History files
 cat ~/.bash_history ~/.zsh_history ~/.mysql_history /root/.bash_history 2>/dev/null
