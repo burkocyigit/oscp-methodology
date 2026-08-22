@@ -1,0 +1,26 @@
+# Obsidian workspace state
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/workspace-*.json
+
+# Obsidian cache / temporary files
+.obsidian/cache/
+.obsidian/backup/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary / editor files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# VS Code
+.vscode/
+
+# JetBrains
+.idea/
