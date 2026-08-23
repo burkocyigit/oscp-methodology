@@ -1,5 +1,5 @@
 
-# Ligolo-ng
+# Pivoting with Ligolo-ng
 
 ## Start Proxy
 
@@ -33,6 +33,16 @@ ligolo-ng >> autoroute
 # Start the tunnel
 ? Start the tunnel? Yes
 ```
+
+## Find Hosts
+
+```sh
+nxc smb 10.0.2.0/24 # The new subnet you've access to
+```
+
+# Double Pivoting with Ligolo-ng
+
+
 # SSH
 ## Single Port Forwarding
 

