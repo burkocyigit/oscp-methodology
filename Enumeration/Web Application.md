@@ -44,6 +44,18 @@ feroxbuster -u http://<target> -w /usr/share/seclists/Discovery/Web-Content/raw-
 
 **Decision point:** `.git/` found → `git log -p` / `git-dumper` for leaked secrets. `.svn/` found → `svn log`. Backup file (`.bak`, `.old`, `~`) found → pull and diff against live app for hardcoded creds/logic. `config.php.bak`, `web.config`, `.env` found → source review for DB creds, secret keys (often reused for SSH/other services).
 
+### git-dumper
+
+```sh
+python3 git_dumper.py http://dev.linkvortex.htb gitdump
+```
+
+```sh
+cd gitdump && git status
+
+git restore --staged . && git diff
+```
+
 ---
 
 ## 2. ffuf — Fuzzing & Vhost Enumeration

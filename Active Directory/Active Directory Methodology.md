@@ -36,7 +36,10 @@ ldapsearch -x -H ldap://<DC_IP> -b "DC=<domain>,DC=local" -s sub "(objectclass=*
 nxc ldap <DC_IP> -u '' -p '' --get-desc-users   # description field often leaks creds
 
 # Username enumeration via Kerberos (no creds needed if valid usernames guessed)
-kerbrute userenum -d <domain.local> --dc <DC_IP> userlist.txt
+kerbrute userenum -d <domain.local> --dc <DC_IP> -o kerbrute.userenum.out userlist.txt
+
+# Grab the users
+grep VALID kerbrute.userenum.out | awk '{print $7}' | awk -F\@ '{print $1}' > users.list
 
 # DNS zone transfer attempt
 dig axfr @<DC_IP> <domain.local>
