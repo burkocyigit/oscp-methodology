@@ -72,3 +72,22 @@ reg.exe save hklm\security C:\security.save
 ```sh
 impacket-secretsdump -sam sam.save -system system.save LOCAL
 ```
+
+# Crack Salted Hashes
+
+- Determine if the salt is `$salt.$password` or vice versa
+- Create the hash file with this structure: `$username:$hash:$salt`
+
+```sh
+hashcat --username hash /usr/share/wordlists/rockyou.txt
+```
+
+This will tell you the mode (-m). Then
+
+```sh
+hashcat -m 1420 --username hash /usr/share/wordlists/rockyou.txt
+```
+
+```sh
+hashcat -m 1420 --username hash --show
+```

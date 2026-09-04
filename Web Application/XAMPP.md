@@ -115,6 +115,14 @@ findstr /si password C:\xampp\htdocs\*.php C:\xampp\phpMyAdmin\*.php 2>nul
 grep -riE "password|passwd|pwd|secret" /opt/lampp/htdocs/ /opt/lampp/phpmyadmin/config.inc.php 2>/dev/null
 ```
 
+```sh
+C:\xampp\mysql\bin> .\mysql.exe -u<username> -p'<password>' <db_name> -e 'show tables';
+
+C:\xampp\mysql\bin> .\mysql.exe -u<username> -p'<password>' <db_name> -e 'describe <table_name>';
+
+C:\xampp\mysql\bin> .\mysql.exe -u<username> -p'<password>' <db_name> -e 'select <field_name> from <table_name>\G';
+```
+
 ---
 
 ## 6. Local Privilege Escalation via XAMPP

