@@ -142,7 +142,7 @@ Valid low-priv creds obtained → pivot straight into the full AD attack chain (
 nmap -p1433 -sV --script ms-sql-info,ms-sql-empty-password,ms-sql-ntlm-info <target>
 
 # Auth attempts
-netexec mssql <target> -u sa -p '<pass>'
+netexec mssql <target> -u sa -p '<pass>' # or try with --local-auth
 netexec mssql <target> -u sa -p '' --local-auth        # empty sa password
 impacket-mssqlclient <user>:'<pass>'@<target> -windows-auth   # domain auth
 impacket-mssqlclient sa:'<pass>'@<target>                     # sql auth

