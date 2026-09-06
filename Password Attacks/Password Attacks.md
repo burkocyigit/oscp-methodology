@@ -91,3 +91,13 @@ hashcat -m 1420 --username hash /usr/share/wordlists/rockyou.txt
 ```sh
 hashcat -m 1420 --username hash --show
 ```
+
+# hashcat on Windows
+
+```sh
+Set-Content -Path .\hash.txt -Value "8846f7eaee8fb117ad06bdd830b7586c" -Encoding ASCII
+```
+
+```sh
+hashcat -d 1 -m 1000 -a 0 hash.txt .\rockyou.txt
+```
