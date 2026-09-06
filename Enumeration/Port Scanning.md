@@ -10,6 +10,10 @@ export target=10.129.47.148
 rustscan $target --ulimit 10000 -g
 ```
 
+```sh
+rustscan -a <IP> -- -Pn -n -A
+```
+
 # Nmap
 
 ```sh
