@@ -298,3 +298,20 @@ Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" |
 ```powershell
 Get-Process
 ```
+# XAMPP Passwords
+
+```powershell
+Get-ChildItem -Path C:\xampp -Include *.txt,*.ini -File -Recurse -ErrorAction SilentlyContinue
+```
+
+# Search for interesting files
+
+```powershell
+Get-ChildItem -Path C:\Users\dave\ -Include *.txt,*.pdf,*.xls,*.xlsx,*.doc,*.docx -File -Recurse -ErrorAction SilentlyContinue
+```
+
+# Lateral Movement with Found Credentials via runas
+
+```powershell
+runas /user:backupadmin cmd
+```
