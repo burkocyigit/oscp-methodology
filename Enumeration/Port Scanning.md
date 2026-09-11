@@ -7,11 +7,7 @@ export target=10.129.47.148
 # Rustscan
 
 ```sh
-rustscan $target --ulimit 10000 -g
-```
-
-```sh
-rustscan -a <IP> -- -Pn -n -A
+rustscan -a $target --ulimit 10000 -- -Pn -n -sV -sC -oN nmap_output
 ```
 
 # Nmap

@@ -132,6 +132,24 @@ find / -perm -6000 -type f 2>/dev/null 2>&1      # both
 find / -perm -4000 -type f 2>/dev/null | xargs ls -la
 ```
 
+Ignore these:
+
+```sh
+/usr/bin/su, 
+/usr/bin/sudo
+/usr/bin/passwd
+/usr/bin/chsh
+/usr/bin/chfn
+/usr/bin/gpasswd
+/usr/bin/newgrp
+/usr/bin/mount
+/usr/bin/umount
+/usr/bin/fusermount
+/usr/lib/openssh/ssh-keysign
+/usr/lib/dbus-1.0/dbus-daemon-launch-helper
+/usr/lib/eject/dmcrypt-get-device
+```
+
 **Decision point:**
 
 - Standard binary (find, cp, bash, python, nmap, vim, etc.) with SUID → check GTFOBins for the **SUID column** (not sudo column — different technique, no password needed).

