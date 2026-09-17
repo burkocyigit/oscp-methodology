@@ -149,11 +149,14 @@ netstat -r
 ```bash
 chisel server -p 9999 --reverse
 ```
-
 # Agent
 
 ```bash
 .\chisel.exe client <KALI_IP>:9999 R:8888:127.0.0.1:8888
 ```
 
-8888 -> the port we want to be able to access
+```sh
+./chisel client --max-retry-count 5 192.168.45.188:9999 R:8082:127.0.0.1:8080
+```
+
+8888 (one on the right) -> the port we want to be able to access

