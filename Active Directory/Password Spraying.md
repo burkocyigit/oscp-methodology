@@ -2,6 +2,10 @@
 awk '{print $1}' usernames.txt > cleanusers.txt
 ```
 
+```sh
+nxc ldap 10.0.2.4 -u user -p pass --users | fgrep -v '[' | fgrep -vi '-Username-' | awk '{print$ 5}' | tee users.txt 
+```
+
 # Hash x Users Spray with nxc
 
 ```sh

