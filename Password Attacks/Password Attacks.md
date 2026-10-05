@@ -6,6 +6,32 @@
 ./username-anarchy -i /path/to/listoffirstandlastnames.txt
 ```
 
+or
+
+```sh
+#!/usr/bin/env bash  
+# Usage: ./mutate.sh names.txt > wordlist.txt  
+  
+while read -r first last; do  
+# lowercase  
+f=$(echo "$first" | tr '[:upper:]' '[:lower:]')  
+l=$(echo "$last" | tr '[:upper:]' '[:lower:]')  
+  
+# initials  
+fi=${f:0:1}  
+li=${l:0:1}  
+  
+echo "$f$l" # firstlast  
+echo "$l$f" # lastfirst  
+echo "$f.$l" # first.last  
+echo "$l.$f" # last.first  
+echo "$fi$l" # flast  
+echo "$f$li" # firstl  
+echo "$fi.$l" # f.last  
+echo "$f.$li" # first.l  
+echo "$fi$li" # fl  
+done < "$1"
+```
 # Password Spraying
 
 ```sh
