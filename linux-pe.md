@@ -1,8 +1,13 @@
 # Linux Privilege Escalation Methodology
 
-Follow this after landing a low-privilege Linux shell. The goal is a justified root path, not a noisy checklist dump. Confirm every finding manually, capture the user flag before PE, and capture the elevated flag immediately after successful PE.
+Use this in priority order: baseline, fast paths, and only then kernel/service exploits as a last resort. Confirm every finding manually, capture the user flag before PE, and capture the elevated flag immediately after success.
 
-## 0. Baseline and evidence
+## 1. Baseline and user-flag check
+
+- [ ] Record `whoami`, `id`, `groups`, hostname, shell type, and the current working directory.
+- [ ] Capture the exact OS version, route, interfaces, open listeners, and `sudo -l` output.
+- [ ] Read the user flag (`local.txt` or the exam-specified value) and record it before changing privilege.
+- [ ] If `sudo -l` shows a passwordless command, inspect that exact binary or script immediately while automation runs.
 
 ```bash
 whoami; id; groups; hostname
@@ -11,33 +16,24 @@ ip addr; ip route; ss -tulpen
 sudo -l
 ```
 
-Record the exact output, current working directory, shell type, reachable interfaces, and local listeners. Read the exam's user flag now (`local.txt` or the instructed path) and record it before changing privileges. If `sudo -l` permits a command without a password, analyze that exact binary/script immediately while automated enumeration runs.
+- [ ] Use the Linux privilege escalation reference in [Linux Privilege Escalation](Privilege%20Escalation/Linux%20Privilege%20Escalation.md) as the supporting path when the issue is not obvious.
 
-## 1. Manual and automated enumeration
+## 2. Run the high-probability checks first
 
-Run one comprehensive enumerator and one lightweight cross-check if time permits; transfer via a method already available and keep the output on disk.
+### Sudo rights and environment abuse
 
-```bash
-./linpeas.sh | tee /tmp/linpeas.txt
-./lse.sh -l1
-./pspy64
-```
-
-Read the output rather than treating highlights as proof. Verify permissions, effective user, command arguments, service account, trigger conditions, and whether the path is actually reachable. See [Linux Privilege Escalation](Privilege%20Escalation/Linux%20Privilege%20Escalation.md) for tools and detailed exploit recipes.
-
-## 2. Fast paths, in evidence order
-
-### 2.1 Sudo rights
+- [ ] Review every allowed `sudo` command, version, arguments, and environment. Check `NOPASSWD`, `SETENV`, wildcard arguments, and custom scripts.
+- [ ] Prefer a narrow documented command over a noisy kernel exploit.
 
 ```bash
 sudo -l
+sudo -l -U <user>
 ```
 
-For every permitted command, inspect its arguments, environment, writable inputs, and version. Check the exact binary against GTFOBins' sudo context. Verify whether `NOPASSWD`, `SETENV`, wildcard arguments, or a custom script meaningfully change the available action. Prefer a narrow documented command over a kernel exploit.
+### Local credential reuse and artifacts
 
-### 2.2 Credential reuse and local credential artifacts
-
-Inspect readable shell histories, app/database configs, `.env`, `.git` history, cron/systemd units, scripts, backups, SSH keys/config/known_hosts, `.netrc`, `.pgpass`, KeePass databases, browser stores, Docker/AWS credentials, and process `cmdline`/`environ`. Search app directories and likely homes before a full-disk grep. Check credentials against local `su`, `sudo -l -U`, SSH, databases, and discovered in-scope hosts; keep username/domain context.
+- [ ] Search readable shell histories, app configs, `.env`, `.git` repos, cron/systemd units, SSH config, `.netrc`, `.pgpass`, browser stores, Docker config, and AWS credentials.
+- [ ] Check credentials against local `su`, `sudo -l -U`, SSH, databases, and in-scope hosts while preserving username/domain context.
 
 ```bash
 find / -type f \( -name '*.conf' -o -name '*.ini' -o -name '*.env' -o -name '*.yml' -o -name '*.xml' -o -name '*.bak' -o -name '*.old' \) 2>/dev/null
@@ -46,9 +42,12 @@ grep -riE 'password|passwd|secret|token|credential' /etc /var/www /opt /home /va
 for p in /proc/[0-9]*; do tr '\0' ' ' < "$p/cmdline" 2>/dev/null; tr '\0' '\n' < "$p/environ" 2>/dev/null | grep -iE 'pass|secret|token|key'; done
 ```
 
-If a DB is exposed locally, check app configs and client files for credentials. For PostgreSQL, use [PostgreSQL](Enumeration/PostgreSQL.md) and verify role rights before attempting `COPY FROM PROGRAM`; for MySQL, confirm the user and file privileges before file-write/UDF paths.
+- [ ] For DB services, validate role rights and local file permissions before using a file-write or `COPY FROM PROGRAM` path; use [PostgreSQL](Enumeration/PostgreSQL.md) when applicable.
 
-### 2.3 SUID/SGID and capabilities
+### SUID/SGID and capabilities
+
+- [ ] Enumerate SUID, SGID, and file capabilities before trying a kernel exploit.
+- [ ] Confirm the binary or capability is the actual issue and the shell's effective UID changes after exploitation.
 
 ```bash
 find / -perm -4000 -type f 2>/dev/null
@@ -56,9 +55,11 @@ find / -perm -2000 -type f 2>/dev/null
 getcap -r / 2>/dev/null
 ```
 
-Compare unusual binaries with the standard OS set. For a known binary, check the SUID or capability-specific GTFOBins entry (not the sudo entry). For a custom executable, inspect ownership/permissions and use `strings`, `file`, `checksec`, or offline analysis to identify a concrete path flaw. Verify the shell's effective UID after exploitation.
+### Cron, systemd, timers, and PATH
 
-### 2.4 Cron, systemd, timers, and PATH
+- [ ] Inspect root-run scripts, cron jobs, services, and timers for writable or misconfigured paths.
+- [ ] Check the script owner, parent directory permissions, environment, executable path, and arguments before modifying anything.
+- [ ] Confirm the scheduler or service actually runs as root or another privileged account before using the path.
 
 ```bash
 cat /etc/crontab; ls -la /etc/cron.*; crontab -l 2>/dev/null
@@ -66,26 +67,25 @@ systemctl list-timers --all
 find /etc /opt /usr/local /var/www -type f -writable 2>/dev/null
 ```
 
-Use `pspy` or process observation to confirm a privileged job actually runs. Read every referenced script and check its owner, writable parent directories, executable paths, environment, and arguments. Branch only when the finding is real:
+- [ ] If a service or task uses a weak `PATH`, confirm which writable directory wins before substituting a malicious binary.
 
-- Writable root-run script/config: modify only the relevant line and wait for or trigger the documented schedule.
-- Relative command or weak service `PATH`: confirm which directory wins and that it is writable before testing a controlled replacement.
-- Wildcard passed to `tar`/similar: confirm current directory, glob behavior, and execution context before using the documented wildcard technique.
-- Writable systemd unit/drop-in: prove service owner, restart capability, and restart impact before changing it.
+### Writable sensitive files, NFS, and service configuration
 
-### 2.5 Writable sensitive files, NFS, and service configuration
+- [ ] Check `/etc/passwd`, `/etc/shadow`, sudoers include files, service config files, and mounted NFS exports for actual write access.
+- [ ] Use `showmount -e <target>` only when it is in scope and the export is relevant.
+- [ ] Consider the root-owned file or SUID path only when the export behavior and permissions support it.
 
-Check `/etc/passwd`, `/etc/shadow`, sudoers include files, service binaries/configuration, mounted shares, and `/etc/exports` for actual write access. From the attacker, enumerate NFS exports with `showmount -e <target>`; only consider the SUID binary route if the share is writable and the export explicitly has `no_root_squash`. Confirm the target-side binary and privilege behavior.
+## 3. Check containers, local services, and forwarding paths
 
-### 2.6 Docker/container and local services
+- [ ] If the host is a container, confirm capabilities, mounts, Docker socket access, and possible host escape paths before using a local exploit.
+- [ ] If a local service is running, identify the process, version, credentials, and route that exposes it.
+- [ ] Use [Pivoting and Port Forwarding](Lateral%20Movement/Pivoting%20%26%20Port%20Forwarding.md) for relevant forwarding tasks, but do not use Ligolo-ng in this standalone-machine workflow.
 
 ```bash
 cat /proc/1/cgroup 2>/dev/null; ls -la /.dockerenv 2>/dev/null
 id; groups
 ss -tulpen; netstat -tulnp 2>/dev/null
 ```
-
-If in a container, establish its capabilities, mounts, Docker socket access, and host relationship before testing an escape. For a local-only web/DB service, identify its process/version and credentials. On a standalone target, use **Chisel** for internal port forwarding; do not use Ligolo-ng for this standalone-machine workflow.
 
 ```bash
 # Attacker: reverse-capable server
@@ -95,31 +95,22 @@ chisel server -p 9999 --reverse
 ./chisel client <attacker-ip>:9999 R:8888:127.0.0.1:<internal-port>
 ```
 
-Connect to `127.0.0.1:8888` on the attacker and enumerate the forwarded service. Check the exact Chisel syntax/version and ensure the listener binds where intended. SSH local/dynamic forwarding is another option when SSH credentials are available. See [Pivoting and Port Forwarding](Lateral%20Movement/Pivoting%20%26%20Port%20Forwarding.md).
+- [ ] Connect to `127.0.0.1:8888` on the attacker and verify the forwarded service before using it for follow-on access.
 
-### 2.7 Kernel and service exploits: last resort
+## 4. Kernel and service exploits are last resort
 
-Collect exact kernel, distribution, package, and service versions. Match a specific local vulnerability and prerequisites; review the exploit and assess crash risk before execution. Prefer a manual config/credential path first. Record why the affected build matches the exploit rather than relying on a suggested-CVE scanner result.
+- [ ] Gather the exact kernel, distro, package, and service versions before trying a local exploit.
+- [ ] Match a specific vulnerability and confirm the exploit prerequisites and crash risk.
+- [ ] Prefer a credential, config, or SUID path over a kernel exploit whenever the direct route is cleaner and less noisy.
+- [ ] Preserve the exploit source and output so the path remains auditable.
 
-## 3. Exploit, verify, capture
+## 5. Exploit, verify, and capture the elevated flag
 
-Before running a local exploit, preserve its source/output and establish that the candidate path is writable/triggerable. Use the least disruptive proof that demonstrates privilege. Then:
+- [ ] Confirm the path is writable or triggerable before executing a privilege escalation attempt.
+- [ ] Use the least disruptive proof that demonstrates the intended privilege gain.
+- [ ] Verify `id` shows UID 0 (or the exact intended elevated identity) and confirm the hostname.
+- [ ] Read the elevated flag (`proof.txt`, `root.txt`, or the exam-specified path) immediately after the successful PE.
+- [ ] Record the command, exact output, and any file or service changes made in the evidence log.
+- [ ] Check for local-only services and credentials that could support the next target, but do not assume the same password or hash works elsewhere.
 
-1. Verify `id` shows UID 0 (or the exact intended elevated identity), and verify hostname.
-2. Immediately read the elevated flag (`proof.txt`, `root.txt`, or exam-instructed path); record its exact value and evidence.
-3. Record the command and enumeration output that justified the path, plus any changes made.
-4. Check for local-only services and credentials that could support the next in-scope host; do not assume the same password/hash works elsewhere.
-5. Do not install persistence or leave long-lived access unless the exam explicitly requires it. The persistence notes are reference material, not default exam steps.
-
-## Source notes
-
-- [Linux Privilege Escalation](Privilege%20Escalation/Linux%20Privilege%20Escalation.md)
-- [Linux Credential Hunting](Password%20Attacks/Credential%20Hunting%20on%20Linux.md)
-- [File Transfers](File%20Transfers/File%20Transfers.md)
-- [Initial Foothold](initial-foothold.md)
-- [Port Scanning](Enumeration/Port%20Scanning.md)
-- [Common Ports](Enumeration/Common%20Ports.md)
-- [Common Ports II](Enumeration/Common%20Ports%20II.md)
-- [PostgreSQL](Enumeration/PostgreSQL.md)
-- [Pivoting and Port Forwarding](Lateral%20Movement/Pivoting%20%26%20Port%20Forwarding.md)
-- [Linux Persistence](Persistence/Linux%20Persistence.md)
+- [ ] Do not leave persistence or long-lived access behind unless the exam explicitly requires it.
