@@ -1,6 +1,17 @@
 
 # Pivoting with Ligolo-ng
 
+## AD ise önce clock skew
+
+```sh
+(Get-Date).ToUniversalTime() # -> Shell'den al ilk makineden
+
+# On Kali
+sudo date -u -s "2026-10-08 00:15:31"
+
+# sonra ligolo
+```
+
 ## Start Proxy
 
 ```sh
@@ -34,6 +45,11 @@ ligolo-ng >> autoroute
 ? Start the tunnel? Yes
 ```
 
+## File Transfer with Pivot
+
+```sh
+listener_add --addr 0.0.0.0:442 --to 127.0.0.1:442
+```
 ## Find Hosts
 
 ```sh

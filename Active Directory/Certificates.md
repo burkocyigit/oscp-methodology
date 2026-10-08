@@ -19,6 +19,14 @@ Sync time with the DC before anything Kerberos-related:
 sudo ntpdate <dc-ip>
 # or
 sudo rdate -n <dc-ip>
+
+# Şunu yap olmazsa
+(Get-Date).ToUniversalTime()
+
+# On Kali
+sudo date -u -s "2026-10-08 00:15:31"
+
+# sonra ligolo
 ```
 
 ---

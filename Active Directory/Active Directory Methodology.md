@@ -12,6 +12,14 @@ echo "<DC_IP>  <domain.local> <DC-HOSTNAME>.<domain.local>" | sudo tee -a /etc/h
 
 # Time sync (Kerberos fails hard on clock skew >5min)
 sudo ntpdate <DC_IP> 2>/dev/null || sudo rdate -n <DC_IP>
+
+# Şunu yap olmazsa
+(Get-Date).ToUniversalTime()
+
+# On Kali
+sudo date -u -s "2026-10-08 00:15:31"
+
+# sonra ligolo
 ```
 
 ---

