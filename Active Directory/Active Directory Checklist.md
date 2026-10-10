@@ -35,7 +35,7 @@ Work from top to bottom, following only the branches that apply. Keep a record o
 - [ ] **04.5** If database file writing is possible and permitted by scope, determine whether an accessible web directory can be used to gain execution; verify the resulting identity and privileges.
 - [ ] **04.6** If an unusual service such as WHOIS or POP3 is exposed, enumerate it for usernames or messages that may disclose another login.
 - [ ] **04.7** If a mailbox or service yields credentials, test them against relevant in-scope services and record each successful account-host combination.
-- [ ] **04.8** If a user account is marked as requiring a password change, use the permitted password-change path before retrying authentication. ([Attack Paths](./Attack%20Paths.md), [Other](./Other.md))
+- [ ] **04.8** If a user account is marked as requiring a password change, use the permitted password-change path before retrying authentication. ([XAMPP](Active%20Directory/XAMPP.md), [Other](./Other.md))
 - [ ] **04.9** If remote management is unavailable for a valid account, check other exposed and authorized access paths, such as file shares, remote execution services, or RDP.
 - [ ] **04.10** If the foothold is Linux, review the operating-system and privilege-escalation context, including the installed sudo version, before selecting a local escalation path.
 - [ ] **04.11** If a known sudo weakness appears applicable, verify its prerequisites and impact before attempting escalation; confirm the resulting identity and collect the required proof.

